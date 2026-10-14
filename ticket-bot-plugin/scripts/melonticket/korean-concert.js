@@ -6,6 +6,20 @@ const koreanMelonRunStateKey = window.TicketBotConfig?.storageKeys?.botRunState 
 const koreanMelonStartAction = window.TicketBotConfig?.actions?.startBot || "startTicketBot";
 const koreanMelonStopAction = window.TicketBotConfig?.actions?.stopBot || "stopTicketBot";
 
+function koreanMelonStatus(message, isError = false) {
+    const button = document.querySelector("#ticketReservation_Btn");
+    if (!button) return;
+    let status = document.querySelector("#ticketBotMelonEntryStatus");
+    if (!status) {
+        status = document.createElement("p");
+        status.id = "ticketBotMelonEntryStatus";
+        status.style.cssText = "margin:8px 0;font-size:13px;line-height:1.4";
+        button.insertAdjacentElement("afterend", status);
+    }
+    status.style.color = isError ? "#b42318" : "#246b36";
+    status.textContent = `插件：${message}`;
+}
+
 function koreanMelonConcertId() {
     return new URL(location.href).searchParams.get("prodId") || document.querySelector("#prodIdNum")?.value || "";
 }
@@ -93,6 +107,7 @@ async function koreanMelonRun(config, runId) {
     const refreshKey = koreanMelonRefreshKey(config);
     if (saleTime && Date.now() < saleTime) {
         console.log("[Melon KR] 等待韩国时间", config.saleStartAt);
+        koreanMelonStatus(`等待开票时间 ${config.saleStartAt.replace("T", " ")}`);
         if (!await koreanMelonWaitUntil(saleTime, runId)) return;
         sessionStorage.setItem(refreshKey, "1");
         location.reload();
@@ -110,6 +125,7 @@ async function koreanMelonRun(config, runId) {
         throw new Error("韩版 Melon 预订区域仍未开放");
     }
 
+    koreanMelonStatus("正在选择演出日期和场次");
     await koreanMelonSelectDate(config, runId);
     await koreanMelonSelectTime(config, runId);
     if (!koreanMelonRunning || runId !== koreanMelonRunId) return;
@@ -118,6 +134,7 @@ async function koreanMelonRun(config, runId) {
     if (!button || button.disabled || button.dataset.prodid !== koreanMelonConcertId()) {
         throw new Error("韩版 Melon 预订按钮不可用");
     }
+    koreanMelonStatus("正在打开预订页面");
     await chrome.storage.local.set({
         melonCaptchaPending: {
             prodId: koreanMelonConcertId(),
@@ -145,9 +162,11 @@ function koreanMelonStart(config, fromStoredState = false) {
     }
     if (!fromStoredState) sessionStorage.removeItem(koreanMelonRefreshKey(config));
     koreanMelonRunning = true;
+    koreanMelonStatus("已开始处理当前演出");
     const runId = ++koreanMelonRunId;
     koreanMelonRun(config, runId).catch(async error => {
         console.error("[Melon KR]", error);
+        koreanMelonStatus(error.message || String(error), true);
         if (runId === koreanMelonRunId) await koreanMelonStop();
     });
 }

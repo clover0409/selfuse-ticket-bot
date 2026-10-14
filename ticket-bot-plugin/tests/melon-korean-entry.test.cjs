@@ -9,10 +9,11 @@ const script = fs.readFileSync(path.join(__dirname, '../scripts/melonticket/kore
 function startFixture(overrides = {}) {
     const clicks = [];
     const storage = new Map();
+    let status;
     const buttons = {
         date: { click: () => clicks.push('date') },
         time: { click: () => clicks.push('time') },
-        reserve: { disabled: false, dataset: { prodid: '214042' } },
+        reserve: { disabled: false, dataset: { prodid: '214042' }, insertAdjacentElement: (position, node) => { status = node; } },
     };
     const dates = [
         { dataset: { perfday: '20261017' }, querySelector: () => buttons.date },
@@ -28,8 +29,9 @@ function startFixture(overrides = {}) {
     const context = {
         window: { TicketBotConfig: { storageKeys: { botRunState: 'ticketBotRunState' }, actions: { startBot: 'startTicketBot', stopBot: 'stopTicketBot' } } },
         document: {
-            querySelector: selector => selector === '.box_ticketing_process' ? {} : selector === '#ticketReservation_Btn' ? buttons.reserve : null,
+            querySelector: selector => selector === '.box_ticketing_process' ? {} : selector === '#ticketReservation_Btn' ? buttons.reserve : selector === '#ticketBotMelonEntryStatus' ? status : null,
             querySelectorAll: selector => selector === '#list_date li[data-perfday]' ? dates : selector === '#list_time li' ? times : [],
+            createElement: () => ({ style: {} }),
         },
         location: { href: 'https://ticket.melon.com/performance/index.htm?prodId=214042', reload: () => { reloads += 1; } },
         sessionStorage: {
@@ -66,7 +68,7 @@ function startFixture(overrides = {}) {
         ...overrides.config,
     };
     listener({ action: 'startTicketBot', platform: 'melon', config }, {}, () => {});
-    return { clicks, storage, get reloads() { return reloads; } };
+    return { clicks, storage, get reloads() { return reloads; }, get status() { return status?.textContent; } };
 }
 
 async function drain() {
@@ -93,6 +95,7 @@ test('does not click when the selected date is unavailable', async () => {
     await drain();
     assert.deepEqual(fixture.clicks, []);
     assert.equal(fixture.storage.get('ticketBotRunState').running, false);
+    assert.match(fixture.status, /找不到配置的演出日期/);
 });
 
 test('does not click before the booking panel opens', async () => {
