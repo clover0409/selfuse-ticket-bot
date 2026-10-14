@@ -16,8 +16,23 @@ import ddddocr
 
 
 MAX_BODY_BYTES = 2_000_000
-recognizer = ddddocr.DdddOcr(beta=True, show_ad=False)
+recognizers = (
+    ddddocr.DdddOcr(show_ad=False),
+    ddddocr.DdddOcr(beta=True, show_ad=False),
+)
 recognizer_lock = threading.Lock()
+
+
+def recognize_code(image_bytes: bytes) -> str:
+    """Try both ddddocr models; only a six-letter answer can be submitted."""
+    last_code = ""
+    with recognizer_lock:
+        for recognizer in recognizers:
+            raw = recognizer.classification(image_bytes)
+            last_code = re.sub(r"[^A-Z]", "", str(raw).upper())
+            if len(last_code) == 6:
+                return last_code
+    return last_code
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -25,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/health":
             self.write_json({"ok": False, "error": "Not found"}, 404)
             return
-        self.write_json({"ok": True, "engine": "ddddocr-beta"})
+        self.write_json({"ok": True, "engine": "ddddocr-default+beta"})
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/ocr":
@@ -40,11 +55,9 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(image, str) or not image.startswith("data:image/png;base64,"):
                 raise ValueError("Expected a PNG data URL")
             image_bytes = base64.b64decode(image.split(",", 1)[1], validate=True)
-            with recognizer_lock:
-                raw = recognizer.classification(image_bytes)
-            code = re.sub(r"[^A-Z]", "", str(raw).upper())
+            code = recognize_code(image_bytes)
             if len(code) != 6:
-                self.write_json({"ok": False, "text": code, "error": "Expected six letters"})
+                self.write_json({"ok": False, "length": len(code), "error": "Expected six letters"})
                 return
             self.write_json({"ok": True, "text": code})
         except (ValueError, TypeError, json.JSONDecodeError) as error:

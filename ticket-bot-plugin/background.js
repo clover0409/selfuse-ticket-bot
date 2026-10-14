@@ -79,7 +79,9 @@ async function melonCaptchaOcr(sender, image) {
         if (!response.ok) throw new Error(`Local OCR returned ${response.status}.`);
         const result = await response.json();
         const code = String(result.text || '').toUpperCase().replace(/[^A-Z]/g, '');
-        if (!result.ok || code.length !== 6) throw new Error('Local OCR did not return six letters.');
+        if (!result.ok || code.length !== 6) {
+            throw new Error(`识别结果不是六位字母（${Number(result.length) || code.length} 位）`);
+        }
         return { success: true, code };
     } finally {
         clearTimeout(timer);

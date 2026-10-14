@@ -60,7 +60,8 @@
         }
         const code = String(result?.code || '').toUpperCase().replace(/[^A-Z]/g, '');
         if (!result?.success || code.length !== codeLength) {
-            showStatus('自动识别不可用，请手动输入验证码。');
+            const reason = result?.error || `识别到 ${code.length} 位字符，需要 ${codeLength} 位`;
+            showStatus(`自动识别失败：${reason}。请手动输入验证码。`);
             return;
         }
 
