@@ -8,7 +8,85 @@ const ACTIONS = {
     INTERPARK_MAIN_WORLD_ACTION: 'interparkMainWorldAction',
     CAPTURE_VISIBLE_TAB: 'captureVisibleTab',
     SAVE_DEBUG_IMAGE: 'saveDebugImage',
+    MELON_TRUSTED_CLICK: 'melonTrustedClick',
+    MELON_CAPTCHA_OCR: 'melonCaptchaOcr',
 };
+
+async function melonTrustedClick(sender, prodId) {
+    const tabId = sender.tab?.id;
+    const url = new URL(sender.url || '');
+    if (!tabId || url.origin !== 'https://ticket.melon.com' ||
+        url.pathname !== '/performance/index.htm' ||
+        url.searchParams.get('prodId') !== prodId || !/^\d+$/.test(prodId)) {
+        throw new Error('Invalid Korean Melon click request.');
+    }
+
+    const [position] = await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [0] },
+        args: [prodId],
+        func: expectedId => {
+            const button = document.querySelector('#ticketReservation_Btn');
+            if (!button || button.disabled || button.dataset.prodid !== expectedId) return null;
+            button.scrollIntoView({ block: 'center' });
+            const rect = button.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            const hit = document.elementFromPoint(x, y);
+            if (!rect.width || !rect.height || !button.contains(hit)) return null;
+            return { x, y };
+        },
+    });
+    if (!position?.result) throw new Error('Korean Melon reservation button is not visible.');
+
+    const target = { tabId };
+    await chrome.debugger.attach(target, '1.3');
+    try {
+        const { x, y } = position.result;
+        await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x, y,
+        });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+            type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1,
+        });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+            type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1,
+        });
+    } finally {
+        await chrome.debugger.detach(target);
+    }
+    return { success: true };
+}
+
+async function melonCaptchaOcr(sender, image) {
+    const url = new URL(sender.url || '');
+    if (url.origin !== 'https://ticket.melon.com' ||
+        url.pathname !== '/reservation/popup/onestop.htm' ||
+        !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(image || '') || image.length > 2000000) {
+        throw new Error('Invalid Korean Melon captcha request.');
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+        const response = await fetch('http://127.0.0.1:17861/ocr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image,
+                prompt: 'Text Recognition:',
+            }),
+            signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Local OCR returned ${response.status}.`);
+        const result = await response.json();
+        const code = String(result.text || '').toUpperCase().replace(/[^A-Z]/g, '');
+        if (!result.ok || code.length !== 6) {
+            throw new Error(`识别结果不是六位字母（${Number(result.length) || code.length} 位）`);
+        }
+        return { success: true, code };
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 function sendRuleUpdateResponse(actionName, sendResponse) {
     const lastError = chrome.runtime.lastError;
@@ -42,6 +120,13 @@ function buildRefererRule(targetUrl, refererUrl) {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === ACTIONS.MELON_TRUSTED_CLICK || request.action === ACTIONS.MELON_CAPTCHA_OCR) {
+        const task = request.action === ACTIONS.MELON_TRUSTED_CLICK
+            ? melonTrustedClick(sender, request.prodId)
+            : melonCaptchaOcr(sender, request.image);
+        task.then(sendResponse, error => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
     if (request.action === 'interparkOnestopAction') {
         const tabId = sender.tab && sender.tab.id;
         if (!tabId || !/^https:\/\/tickets\.interpark\.com\/(?:onestop(?:[/?#]|$)|gates\/)/.test(sender.url || '')

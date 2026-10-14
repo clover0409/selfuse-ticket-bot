@@ -38,6 +38,24 @@ function normalizeConcertId(platform, concertId) {
     return extractIdFromUrl(concertId, platformIdParams[platform]);
 }
 
+function getMelonSite(booking, activeUrl = "") {
+    if (booking.melonSite === "korean" || booking.melonSite === "global") return booking.melonSite;
+    const configuredUrl = String(booking["concert-id"] || "");
+    if (/^https?:\/\/ticket\.melon\.com\//i.test(configuredUrl)) return "korean";
+    if (/^https?:\/\/tkglobal\.melon\.com\//i.test(configuredUrl)) return "global";
+    try {
+        const page = new URL(activeUrl);
+        const concertId = normalizeConcertId("melon", configuredUrl);
+        if (page.pathname === "/performance/index.htm" && page.searchParams.get("prodId") === concertId) {
+            if (page.hostname === "ticket.melon.com") return "korean";
+            if (page.hostname === "tkglobal.melon.com") return "global";
+        }
+    } catch (error) {
+        // A numeric ID has no URL; older cards then use their saved fields.
+    }
+    return Object.hasOwn(booking, "saleStartAt") ? "korean" : "global";
+}
+
 let loadAutoBooking = async () => {
     let autoBooking = await get_stored_value(storageKeys.autoBooking);
     let listContainer = document.getElementById("list-booking");
@@ -112,6 +130,16 @@ function createConcertItem(booking, index) {
     concertInfo.appendChild(date);
     concertInfo.appendChild(time);
     concertInfo.appendChild(section);
+    if (booking.platform === "melon") {
+        let site = document.createElement("p");
+        site.textContent = `Melon 版本: ${getMelonSite(booking) === "korean" ? "韩版" : "Global"}`;
+        concertInfo.appendChild(site);
+    }
+    if (booking.platform === "melon" && booking.saleStartAt) {
+        let saleStart = document.createElement("p");
+        saleStart.textContent = `开票时间（韩国）: ${booking.saleStartAt.replace("T", " ")}`;
+        concertInfo.appendChild(saleStart);
+    }
 
     if (booking.platform === "interpark") {
         let polling = document.createElement("p");
@@ -140,9 +168,12 @@ function createConcertItem(booking, index) {
 
     let actionsContainer = document.createElement("div");
     actionsContainer.classList.add("booking-actions");
-    actionsContainer.appendChild(createCardAction("开始", "start-action", () => startBooking(booking)));
-    actionsContainer.appendChild(createCardAction("停止", "stop-action", () => stopBooking(booking.platform)));
+    let melonStatus = document.createElement("p");
+    if (booking.platform === "melon") melonStatus.style.cssText = "font-size:12px;white-space:normal;overflow-wrap:anywhere";
+    actionsContainer.appendChild(createCardAction("开始", "start-action", () => startBooking(booking, melonStatus)));
+    actionsContainer.appendChild(createCardAction("停止", "stop-action", () => stopBooking(booking)));
     actionsContainer.appendChild(createCardAction("编辑", "edit-action", () => editBooking(booking)));
+    if (booking.platform === "melon") concertInfo.appendChild(melonStatus);
 
     div.appendChild(concertInfo);
     div.appendChild(platformImage);
@@ -150,8 +181,8 @@ function createConcertItem(booking, index) {
     div.appendChild(deleteButton);
 
     div.addEventListener("click", async() => {
-        await stopBooking(booking.platform);
-        openBookingUrl(booking.platform, normalizeConcertId(booking.platform, booking["concert-id"]));
+        await stopBooking(booking);
+        openBookingUrl(booking.platform, normalizeConcertId(booking.platform, booking["concert-id"]), getMelonSite(booking));
     });
 
     return div;
@@ -177,7 +208,7 @@ async function sendActiveTabMessage(message) {
     });
 }
 
-function getStartMessage(booking, concertId) {
+function getStartMessage(booking, concertId, melonSite) {
     if (booking.platform === "thaiticket") {
         return {
             action: actions.startThaiTicket,
@@ -187,49 +218,95 @@ function getStartMessage(booking, concertId) {
 
     return {
         action: actions.startBot,
-        platform: booking.platform,
+        platform: booking.platform === "melon" && melonSite === "korean" ? "melonKorean" : booking.platform,
         concertId,
         config: booking,
     };
 }
 
-function getStopMessage(platform) {
+function getStopMessage(platform, melonSite) {
     if (platform === "thaiticket") {
         return { action: actions.stopThaiTicket };
     }
 
     return {
         action: actions.stopBot,
-        platform,
+        platform: platform === "melon" && melonSite === "korean" ? "melonKorean" : platform,
     };
 }
 
-async function startBooking(booking) {
+async function startBooking(booking, melonStatus) {
     const concertId = normalizeConcertId(booking.platform, booking["concert-id"]);
+    const report = message => { if (melonStatus) melonStatus.textContent = message; };
+    if (booking.platform === "melon") report("正在连接演出页面…");
 
-    await store_value(storageKeys.botRunState, {
-        running: true,
-        platform: booking.platform,
-        concertId,
-        config: booking,
-    });
-
+    let melonTabId;
+    let melonSite;
     try {
-        await sendActiveTabMessage(getStartMessage(booking, concertId));
+        let activeUrl = "";
+        if (booking.platform === "melon") {
+            const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            melonTabId = activeTabs[0]?.id;
+            activeUrl = activeTabs[0]?.url || "";
+            melonSite = getMelonSite(booking, activeUrl);
+        }
+        await store_value(storageKeys.botRunState, {
+            running: true,
+            platform: booking.platform === "melon" && melonSite === "korean" ? "melonKorean" : booking.platform,
+            concertId,
+            config: booking,
+        });
+        if (booking.platform === "melon" && melonSite === "korean") {
+            const currentUrl = activeUrl && new URL(activeUrl);
+            if (!currentUrl || currentUrl.origin !== "https://ticket.melon.com" ||
+                currentUrl.pathname !== "/performance/index.htm" ||
+                currentUrl.searchParams.get("prodId") !== concertId) {
+                report("已打开对应演出页面；请查看页面右下角的插件状态。");
+                openBookingUrl(booking.platform, concertId, melonSite);
+                return;
+            }
+        }
+        const message = getStartMessage(booking, concertId, melonSite);
+        try {
+            await sendActiveTabMessage(message);
+        } catch (error) {
+            if (melonSite !== "korean" || !melonTabId ||
+                !/Receiving end does not exist|Could not establish connection/i.test(error.message)) throw error;
+            await chrome.scripting.executeScript({
+                target: { tabId: melonTabId, frameIds: [0] },
+                files: [
+                    "config/config.js",
+                    "scripts/common/storage.js",
+                    "scripts/common/sleep.js",
+                    "scripts/melonticket/korean-concert.js",
+                ],
+            });
+            await sendActiveTabMessage(message);
+        }
+        if (melonSite === "korean") report("已连接；请查看演出页面右下角的插件状态。");
     } catch (error) {
         console.error("Start failed:", error);
-        openBookingUrl(booking.platform, concertId);
+        if (booking.platform === "melon" && melonSite !== "global") {
+            report(`启动失败：${error.message}`);
+        } else {
+            openBookingUrl(booking.platform, concertId, melonSite);
+        }
     }
 }
 
-async function stopBooking(platform) {
+async function stopBooking(booking) {
+    const platform = booking.platform;
+    const currentState = await get_stored_value(storageKeys.botRunState);
+    const melonSite = platform === "melon" && currentState?.platform === "melonKorean" &&
+        currentState.concertId === normalizeConcertId(platform, booking["concert-id"])
+        ? "korean" : getMelonSite(booking);
     await store_value(storageKeys.botRunState, {
         running: false,
-        platform,
+        platform: platform === "melon" && melonSite === "korean" ? "melonKorean" : platform,
     });
 
     try {
-        await sendActiveTabMessage(getStopMessage(platform));
+        await sendActiveTabMessage(getStopMessage(platform, melonSite));
     } catch (error) {
         console.error("Stop failed:", error);
     }
@@ -241,11 +318,13 @@ function editBooking(booking) {
     window.location.href = `../${getPlatformFormPath(platform)}?editId=${concertId}&platform=${platform}`;
 }
 
-function openBookingUrl(platform, concertId) {
+function openBookingUrl(platform, concertId, melonSite = "global") {
     let url;
     switch (platform) {
         case "melon":
-            url = `${platformStartUrls.melon || "https://tkglobal.melon.com/performance/index.htm?langCd=EN&prodId="}${concertId}`;
+            url = melonSite === "korean"
+                ? `${platformStartUrls.melonKorean || "https://ticket.melon.com/performance/index.htm?prodId="}${concertId}`
+                : `${platformStartUrls.melon || "https://tkglobal.melon.com/performance/index.htm?langCd=EN&prodId="}${concertId}`;
             break;
         case "yes24":
             url = `${platformStartUrls.yes24 || "http://ticket.yes24.com/Pages/English/Perf/FnPerfDeail.aspx?IdPerf="}${concertId}`;
@@ -267,6 +346,10 @@ function openBookingUrl(platform, concertId) {
         return;
     }
 
+    if (platform === "melon" && melonSite === "korean") {
+        chrome.tabs.create({ url });
+        return;
+    }
     window.open(url, "_blank");
 }
 

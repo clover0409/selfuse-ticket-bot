@@ -13,6 +13,18 @@
     </div>
     <form>
         <div include-html="../form/form.html"></div>
+        <div class="form-row">
+            <label for="melonSite">Melon 版本</label>
+            <select id="melonSite" name="melonSite">
+                <option value="korean">韩版 ticket.melon.com</option>
+                <option value="global">Global tkglobal.melon.com</option>
+            </select>
+        </div>
+        <p>上方日期和时间填写演出场次；下方填写开票时间。</p>
+        <div class="form-row">
+            <label for="saleStartAt">开票时间（韩国时间，可留空立即开始）</label>
+            <input type="datetime-local" id="saleStartAt" name="saleStartAt" step="1">
+        </div>
         
         <div class="button-row">
             <button class="button-concert" id="melon" type="submit">Submit</button>
