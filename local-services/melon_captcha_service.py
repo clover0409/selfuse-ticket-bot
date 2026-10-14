@@ -7,12 +7,14 @@ Run: python local-services/melon_captcha_service.py
 from __future__ import annotations
 
 import base64
+import io
 import json
 import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import ddddocr
+from PIL import Image
 
 
 MAX_BODY_BYTES = 2_000_000
@@ -23,8 +25,19 @@ recognizers = (
 recognizer_lock = threading.Lock()
 
 
+def flatten_transparency(image_bytes: bytes) -> bytes:
+    """Render Melon's transparent black lettering on the white webpage background."""
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    background = Image.new("RGBA", image.size, "white")
+    background.alpha_composite(image)
+    output = io.BytesIO()
+    background.convert("RGB").save(output, format="PNG")
+    return output.getvalue()
+
+
 def recognize_code(image_bytes: bytes) -> str:
     """Try both ddddocr models; only a six-letter answer can be submitted."""
+    image_bytes = flatten_transparency(image_bytes)
     last_code = ""
     with recognizer_lock:
         for recognizer in recognizers:
