@@ -105,6 +105,18 @@
         },
         {
             "matches": [
+                "https://ticket.melon.com/performance/index.htm*"
+            ],
+            "js": [
+                "config/config.js",
+                "scripts/common/storage.js",
+                "scripts/common/sleep.js",
+                "scripts/melonticket/korean-concert.js"
+            ],
+            "run_at": "document_end"
+        },
+        {
+            "matches": [
                 "https://www.thaiticketmajor.com/performance/*",
                 "https://booking.thaiticketmajor.com/booking/3m/zones.php*"
             ],

@@ -13,6 +13,11 @@
     </div>
     <form>
         <div include-html="../form/form.html"></div>
+        <p>上方日期和时间填写演出场次；下方填写开票时间。</p>
+        <div class="form-row">
+            <label for="saleStartAt">开票时间（韩国时间，可留空立即开始）</label>
+            <input type="datetime-local" id="saleStartAt" name="saleStartAt" step="1">
+        </div>
         
         <div class="button-row">
             <button class="button-concert" id="melon" type="submit">Submit</button>

@@ -12,7 +12,7 @@
             stopThaiTicket: 'stopThaiticket',
         },
         platformStartUrls: {
-            melon: 'https://tkglobal.melon.com/performance/index.htm?langCd=EN&prodId=',
+            melon: 'https://ticket.melon.com/performance/index.htm?prodId=',
             yes24: 'http://ticket.yes24.com/Pages/English/Perf/FnPerfDeail.aspx?IdPerf=',
             interpark: '',
             thaiticket: 'https://www.thaiticketmajor.com/',

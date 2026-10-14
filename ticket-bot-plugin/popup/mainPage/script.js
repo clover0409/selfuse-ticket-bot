@@ -112,6 +112,11 @@ function createConcertItem(booking, index) {
     concertInfo.appendChild(date);
     concertInfo.appendChild(time);
     concertInfo.appendChild(section);
+    if (booking.platform === "melon" && booking.saleStartAt) {
+        let saleStart = document.createElement("p");
+        saleStart.textContent = `开票时间（韩国）: ${booking.saleStartAt.replace("T", " ")}`;
+        concertInfo.appendChild(saleStart);
+    }
 
     if (booking.platform === "interpark") {
         let polling = document.createElement("p");
@@ -215,6 +220,17 @@ async function startBooking(booking) {
     });
 
     try {
+        if (booking.platform === "melon") {
+            const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            const activeUrl = activeTabs[0] && activeTabs[0].url;
+            const currentUrl = activeUrl && new URL(activeUrl);
+            if (!currentUrl || currentUrl.origin !== "https://ticket.melon.com" ||
+                currentUrl.pathname !== "/performance/index.htm" ||
+                currentUrl.searchParams.get("prodId") !== concertId) {
+                openBookingUrl(booking.platform, concertId);
+                return;
+            }
+        }
         await sendActiveTabMessage(getStartMessage(booking, concertId));
     } catch (error) {
         console.error("Start failed:", error);
@@ -245,7 +261,7 @@ function openBookingUrl(platform, concertId) {
     let url;
     switch (platform) {
         case "melon":
-            url = `${platformStartUrls.melon || "https://tkglobal.melon.com/performance/index.htm?langCd=EN&prodId="}${concertId}`;
+            url = `${platformStartUrls.melon || "https://ticket.melon.com/performance/index.htm?prodId="}${concertId}`;
             break;
         case "yes24":
             url = `${platformStartUrls.yes24 || "http://ticket.yes24.com/Pages/English/Perf/FnPerfDeail.aspx?IdPerf="}${concertId}`;
@@ -267,6 +283,10 @@ function openBookingUrl(platform, concertId) {
         return;
     }
 
+    if (platform === "melon") {
+        chrome.tabs.create({ url });
+        return;
+    }
     window.open(url, "_blank");
 }
 
