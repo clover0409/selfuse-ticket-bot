@@ -13,7 +13,7 @@ function startFixture(overrides = {}) {
     const buttons = {
         date: { click: () => clicks.push('date') },
         time: { click: () => clicks.push('time') },
-        reserve: { disabled: false, dataset: { prodid: '214042' }, insertAdjacentElement: (position, node) => { status = node; } },
+        reserve: { disabled: false, dataset: { prodid: '214042' } },
     };
     const dates = [
         { dataset: { perfday: '20261017' }, querySelector: () => buttons.date },
@@ -29,6 +29,7 @@ function startFixture(overrides = {}) {
     const context = {
         window: { TicketBotConfig: { storageKeys: { botRunState: 'ticketBotRunState' }, actions: { startBot: 'startTicketBot', stopBot: 'stopTicketBot' } } },
         document: {
+            body: { appendChild: node => { status = node; } },
             querySelector: selector => selector === '.box_ticketing_process' ? {} : selector === '#ticketReservation_Btn' ? buttons.reserve : selector === '#ticketBotMelonEntryStatus' ? status : null,
             querySelectorAll: selector => selector === '#list_date li[data-perfday]' ? dates : selector === '#list_time li' ? times : [],
             createElement: () => ({ style: {} }),
@@ -96,6 +97,13 @@ test('does not click when the selected date is unavailable', async () => {
     assert.deepEqual(fixture.clicks, []);
     assert.equal(fixture.storage.get('ticketBotRunState').running, false);
     assert.match(fixture.status, /找不到配置的演出日期/);
+});
+
+test('explains that a performance date is required when several dates exist', async () => {
+    const fixture = startFixture({ config: { date: '' } });
+    await drain();
+    assert.deepEqual(fixture.clicks, []);
+    assert.match(fixture.status, /多个日期/);
 });
 
 test('does not click before the booking panel opens', async () => {

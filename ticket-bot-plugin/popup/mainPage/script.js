@@ -145,9 +145,12 @@ function createConcertItem(booking, index) {
 
     let actionsContainer = document.createElement("div");
     actionsContainer.classList.add("booking-actions");
-    actionsContainer.appendChild(createCardAction("开始", "start-action", () => startBooking(booking)));
+    let melonStatus = document.createElement("p");
+    if (booking.platform === "melon") melonStatus.style.cssText = "font-size:12px;white-space:normal;overflow-wrap:anywhere";
+    actionsContainer.appendChild(createCardAction("开始", "start-action", () => startBooking(booking, melonStatus)));
     actionsContainer.appendChild(createCardAction("停止", "stop-action", () => stopBooking(booking.platform)));
     actionsContainer.appendChild(createCardAction("编辑", "edit-action", () => editBooking(booking)));
+    if (booking.platform === "melon") concertInfo.appendChild(melonStatus);
 
     div.appendChild(concertInfo);
     div.appendChild(platformImage);
@@ -209,32 +212,57 @@ function getStopMessage(platform) {
     };
 }
 
-async function startBooking(booking) {
+async function startBooking(booking, melonStatus) {
     const concertId = normalizeConcertId(booking.platform, booking["concert-id"]);
+    const report = message => { if (melonStatus) melonStatus.textContent = message; };
+    report("正在连接演出页面…");
 
-    await store_value(storageKeys.botRunState, {
-        running: true,
-        platform: booking.platform,
-        concertId,
-        config: booking,
-    });
-
+    let melonTabId;
     try {
+        await store_value(storageKeys.botRunState, {
+            running: true,
+            platform: booking.platform,
+            concertId,
+            config: booking,
+        });
         if (booking.platform === "melon") {
             const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
             const activeUrl = activeTabs[0] && activeTabs[0].url;
+            melonTabId = activeTabs[0]?.id;
             const currentUrl = activeUrl && new URL(activeUrl);
             if (!currentUrl || currentUrl.origin !== "https://ticket.melon.com" ||
                 currentUrl.pathname !== "/performance/index.htm" ||
                 currentUrl.searchParams.get("prodId") !== concertId) {
+                report("已打开对应演出页面；请查看页面右下角的插件状态。");
                 openBookingUrl(booking.platform, concertId);
                 return;
             }
         }
-        await sendActiveTabMessage(getStartMessage(booking, concertId));
+        const message = getStartMessage(booking, concertId);
+        try {
+            await sendActiveTabMessage(message);
+        } catch (error) {
+            if (booking.platform !== "melon" || !melonTabId ||
+                !/Receiving end does not exist|Could not establish connection/i.test(error.message)) throw error;
+            await chrome.scripting.executeScript({
+                target: { tabId: melonTabId, frameIds: [0] },
+                files: [
+                    "config/config.js",
+                    "scripts/common/storage.js",
+                    "scripts/common/sleep.js",
+                    "scripts/melonticket/korean-concert.js",
+                ],
+            });
+            await sendActiveTabMessage(message);
+        }
+        report("已连接；请查看演出页面右下角的插件状态。");
     } catch (error) {
         console.error("Start failed:", error);
-        openBookingUrl(booking.platform, concertId);
+        if (booking.platform === "melon") {
+            report(`启动失败：${error.message}`);
+        } else {
+            openBookingUrl(booking.platform, concertId);
+        }
     }
 }
 

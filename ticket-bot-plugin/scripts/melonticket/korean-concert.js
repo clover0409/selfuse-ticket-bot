@@ -7,14 +7,12 @@ const koreanMelonStartAction = window.TicketBotConfig?.actions?.startBot || "sta
 const koreanMelonStopAction = window.TicketBotConfig?.actions?.stopBot || "stopTicketBot";
 
 function koreanMelonStatus(message, isError = false) {
-    const button = document.querySelector("#ticketReservation_Btn");
-    if (!button) return;
     let status = document.querySelector("#ticketBotMelonEntryStatus");
     if (!status) {
         status = document.createElement("p");
         status.id = "ticketBotMelonEntryStatus";
-        status.style.cssText = "margin:8px 0;font-size:13px;line-height:1.4";
-        button.insertAdjacentElement("afterend", status);
+        status.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483647;max-width:360px;padding:10px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;box-shadow:0 2px 12px #0003;font-size:13px;line-height:1.4";
+        document.body.appendChild(status);
     }
     status.style.color = isError ? "#b42318" : "#246b36";
     status.textContent = `插件：${message}`;
@@ -70,6 +68,7 @@ async function koreanMelonSelectDate(config, runId) {
     const dates = await koreanMelonWaitFor("#list_date li[data-perfday]", runId);
     const wanted = (config.date || "").replaceAll("-", "");
     const selected = wanted ? dates.find(date => date.dataset.perfday === wanted) : dates.length === 1 ? dates[0] : null;
+    if (!wanted && dates.length > 1) throw new Error("此演出有多个日期，请在插件卡片中填写演出日期");
     if (!selected?.querySelector("button")) throw new Error("找不到配置的演出日期");
     selected.querySelector("button").click();
 }
@@ -80,6 +79,7 @@ async function koreanMelonSelectTime(config, runId) {
     const selected = wanted
         ? times.find(time => koreanMelonTimeFromText(time.textContent) === wanted)
         : times.length === 1 ? times[0] : null;
+    if (!wanted && times.length > 1) throw new Error("此演出有多个场次，请在插件卡片中填写演出时间");
     if (!selected?.querySelector("button")) throw new Error("找不到配置的演出场次");
     selected.querySelector("button").click();
 }
