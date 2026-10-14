@@ -68,7 +68,7 @@ function startFixture(overrides = {}) {
         time: '15:00',
         ...overrides.config,
     };
-    listener({ action: 'startTicketBot', platform: 'melon', config }, {}, () => {});
+    listener({ action: 'startTicketBot', platform: 'melonKorean', config }, {}, () => {});
     return { clicks, storage, get reloads() { return reloads; }, get status() { return status?.textContent; } };
 }
 

@@ -36,7 +36,7 @@
 
 ### 韩版 Melon Ticket 定时进入预订
 
-Melon 卡片现在使用 `ticket.melon.com` 韩版演出页。填写韩版演出链接或 `prodId`、演出日期与场次时间；“开票时间（韩国时间）”填写 `YYYY-MM-DD HH:mm:ss` 对应的日期和时间。留空时，点击“开始”会立即尝试进入当前已开放的预订流程。
+Melon 表单可选择韩版 `ticket.melon.com` 或 Global `tkglobal.melon.com`。原有 Global 卡片继续使用原来的入口。选择韩版后，填写演出链接或 `prodId`、演出日期与场次时间；“开票时间（韩国时间）”填写 `YYYY-MM-DD HH:mm:ss` 对应的日期和时间。留空时，点击“开始”会立即尝试进入当前已开放的预订流程。
 
 请提前在韩版 Melon 登录，并保持演出页面打开、浏览器运行，临近开票时保持该标签页处于前台。点击卡片“开始”后，插件会等到开票时间刷新演出页，选择指定场次并点击“예매하기”。韩版按钮会忽略网页脚本的普通点击，因此插件使用 Chrome 的 `debugger` 权限发送实际鼠标点击；更新插件后，Chrome 会提示确认该权限。
 
@@ -300,7 +300,7 @@ captchaOcr: {
 This Chrome extension streamlines the process of finding and booking concert tickets on popular Korean platforms. such as <a href="https://tkglobal.melon.com/main/index.htm?langCd=EN">Melon Ticket</a>, <a href="http://ticket.yes24.com/English">Yes24</a> and <a href="https://www.globalinterpark.com/?lang=en">Interpark</a>. The extension includes a user-friendly popup with the ability to register for automatic booking. Once a concert page is opened, the extension automates the process, ensuring a hassle-free experience in securing a seat for the event.
 
 > [!NOTE]
-> Melon Ticket now has a separate Korean-page flow for timed entry into reservation. Its seat automation remains for the global page; other platforms retain their existing behavior.
+> Melon Ticket has separate Korean and Global choices in the extension form. Korean pages support timed reservation entry; global-page seat automation retains its existing flow. Other platforms retain their existing behavior.
 
 ## :cd: Usage :cd:
 

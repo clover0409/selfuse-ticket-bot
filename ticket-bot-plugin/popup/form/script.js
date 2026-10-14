@@ -78,6 +78,13 @@ function mergeBookingData(existing, incoming) {
 
 function fillForm(data) {
     const flatData = Object.assign({}, data, data.deliveryConfirmation || {});
+    const melonSite = document.querySelector('[name="melonSite"]');
+    if (melonSite && !flatData.melonSite) {
+        const value = String(flatData["concert-id"] || "");
+        melonSite.value = /^https?:\/\/ticket\.melon\.com\//i.test(value) ||
+            (!/^https?:\/\/tkglobal\.melon\.com\//i.test(value) && Object.hasOwn(flatData, "saleStartAt"))
+            ? "korean" : "global";
+    }
     Object.entries(flatData).forEach(([key, value]) => {
         const input = document.querySelector(`[name="${key}"]`);
         if (!input) {

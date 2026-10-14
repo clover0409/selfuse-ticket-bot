@@ -5,6 +5,7 @@ let koreanMelonRunId = 0;
 const koreanMelonRunStateKey = window.TicketBotConfig?.storageKeys?.botRunState || "ticketBotRunState";
 const koreanMelonStartAction = window.TicketBotConfig?.actions?.startBot || "startTicketBot";
 const koreanMelonStopAction = window.TicketBotConfig?.actions?.stopBot || "stopTicketBot";
+const koreanMelonPlatform = "melonKorean";
 
 function koreanMelonStatus(message, isError = false) {
     let status = document.querySelector("#ticketBotMelonEntryStatus");
@@ -89,7 +90,7 @@ async function koreanMelonStop() {
     koreanMelonRunId += 1;
     await store_value(koreanMelonRunStateKey, {
         running: false,
-        platform: "melon",
+        platform: koreanMelonPlatform,
         concertId: koreanMelonConcertId(),
     });
 }
@@ -172,12 +173,12 @@ function koreanMelonStart(config, fromStoredState = false) {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === koreanMelonStartAction && request.platform === "melon") {
+    if (request.action === koreanMelonStartAction && request.platform === koreanMelonPlatform) {
         koreanMelonStart(request.config);
         sendResponse({ status: "started" });
         return true;
     }
-    if (request.action === koreanMelonStopAction && request.platform === "melon") {
+    if (request.action === koreanMelonStopAction && request.platform === koreanMelonPlatform) {
         koreanMelonStop();
         sendResponse({ status: "stopped" });
         return true;
@@ -187,7 +188,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
     const state = changes[koreanMelonRunStateKey]?.newValue;
     if (areaName === "sync" && state &&
-        (state.running === false || state.platform !== "melon" || state.concertId !== koreanMelonConcertId())) {
+        (state.running === false || state.platform !== koreanMelonPlatform || state.concertId !== koreanMelonConcertId())) {
         koreanMelonRunning = false;
         koreanMelonRunId += 1;
     }
@@ -195,7 +196,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 (async () => {
     const state = await get_stored_value(koreanMelonRunStateKey);
-    if (state?.running && state.platform === "melon" && state.concertId === koreanMelonConcertId()) {
+    if (state?.running && state.platform === koreanMelonPlatform && state.concertId === koreanMelonConcertId()) {
         koreanMelonStart(state.config, true);
     }
 })();
