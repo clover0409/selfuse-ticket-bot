@@ -17,6 +17,12 @@
             interpark: '',
             thaiticket: 'https://www.thaiticketmajor.com/',
         },
+        melon: {
+            captchaOcr: {
+                maxAttempts: 2,
+                codeLength: 6,
+            },
+        },
         interpark: {
             defaultPlaceId: '',
             useSeatDetailApiFlow: true,

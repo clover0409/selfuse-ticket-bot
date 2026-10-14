@@ -118,9 +118,22 @@ async function koreanMelonRun(config, runId) {
     if (!button || button.disabled || button.dataset.prodid !== koreanMelonConcertId()) {
         throw new Error("韩版 Melon 预订按钮不可用");
     }
+    await chrome.storage.local.set({
+        melonCaptchaPending: {
+            prodId: koreanMelonConcertId(),
+            expiresAt: Date.now() + 60 * 60 * 1000,
+        },
+    });
+    const result = await chrome.runtime.sendMessage({
+        action: "melonTrustedClick",
+        prodId: koreanMelonConcertId(),
+    });
+    if (!result?.success) {
+        await chrome.storage.local.remove("melonCaptchaPending");
+        throw new Error(result?.error || "韩版 Melon 预订按钮点击失败");
+    }
     sessionStorage.removeItem(refreshKey);
     await koreanMelonStop();
-    button.click();
     console.log("[Melon KR] 已点击预订，后续排队由网站处理");
 }
 

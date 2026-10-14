@@ -12,7 +12,7 @@ function startFixture(overrides = {}) {
     const buttons = {
         date: { click: () => clicks.push('date') },
         time: { click: () => clicks.push('time') },
-        reserve: { disabled: false, dataset: { prodid: '214042' }, click: () => clicks.push('reserve') },
+        reserve: { disabled: false, dataset: { prodid: '214042' } },
     };
     const dates = [
         { dataset: { perfday: '20261017' }, querySelector: () => buttons.date },
@@ -38,8 +38,17 @@ function startFixture(overrides = {}) {
             removeItem: key => storage.delete(key),
         },
         chrome: {
-            runtime: { onMessage: { addListener: callback => { listener = callback; } } },
-            storage: { onChanged: { addListener() {} } },
+            runtime: {
+                onMessage: { addListener: callback => { listener = callback; } },
+                sendMessage: async message => { clicks.push(message.action); return { success: true }; },
+            },
+            storage: {
+                local: {
+                    set: async values => Object.entries(values).forEach(([key, value]) => storage.set(key, value)),
+                    remove: async key => storage.delete(key),
+                },
+                onChanged: { addListener() {} },
+            },
         },
         getComputedStyle: () => ({ display: overrides.panelHidden ? 'none' : 'block' }),
         get_stored_value: async () => null,
@@ -64,10 +73,11 @@ async function drain() {
     await new Promise(resolve => setImmediate(resolve));
 }
 
-test('selects the configured Korean performance and clicks reserve only once', async () => {
+test('selects the configured Korean performance and requests one trusted reservation click', async () => {
     const fixture = startFixture();
     await drain();
-    assert.deepEqual(fixture.clicks, ['date', 'time', 'reserve']);
+    assert.deepEqual(fixture.clicks, ['date', 'time', 'melonTrustedClick']);
+    assert.equal(fixture.storage.get('melonCaptchaPending').prodId, '214042');
     assert.equal(fixture.storage.get('ticketBotRunState').running, false);
 });
 

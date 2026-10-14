@@ -8,7 +8,8 @@
         "activeTab",
         "scripting",
         "declarativeNetRequest",
-        "downloads"
+        "downloads",
+        "debugger"
     ],
     "declarative_net_request": {
         "rule_resources": [
@@ -112,6 +113,16 @@
                 "scripts/common/storage.js",
                 "scripts/common/sleep.js",
                 "scripts/melonticket/korean-concert.js"
+            ],
+            "run_at": "document_end"
+        },
+        {
+            "matches": [
+                "https://ticket.melon.com/reservation/popup/onestop.htm*"
+            ],
+            "js": [
+                "config/config.js",
+                "scripts/melonticket/korean-captcha.js"
             ],
             "run_at": "document_end"
         },
